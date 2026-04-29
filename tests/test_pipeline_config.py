@@ -49,6 +49,14 @@ def test_midi_upload_plan_includes_refine() -> None:
     ]
 
 
+def test_chord_sheet_plan_parses_then_engraves_without_ingest() -> None:
+    cfg = PipelineConfig(variant="chord_sheet", enable_refine=False)
+    assert cfg.get_execution_plan() == [
+        "arrange",
+        "engrave",
+    ]
+
+
 def test_condense_only_replaces_arrange() -> None:
     """condense_only pipeline uses condense instead of arrange."""
     cfg = PipelineConfig(

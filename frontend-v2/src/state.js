@@ -1,7 +1,7 @@
 // Pure state management for the oh-sheet card-morph UI.
 // No DOM, no framework — just a tiny pub/sub store plus a pure reducer.
 
-const DEFAULT_INITIAL = { name: "idle", source: "youtube" };
+const DEFAULT_INITIAL = { name: "idle", source: "chord_sheet" };
 
 export function createStore(initial = DEFAULT_INITIAL) {
   let phase = initial;
@@ -28,6 +28,7 @@ const STAGE_LABELS = {
   ingest: "Preparing",
   transcribe: "Transcribing",
   arrange: "Arranging",
+  refine: "Refining",
   engrave: "Engraving",
 };
 

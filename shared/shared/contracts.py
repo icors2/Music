@@ -130,7 +130,7 @@ def beat_to_sec(beat: float, tempo_map: list[TempoMapEntry]) -> float:
 class InputMetadata(BaseModel):
     title: str | None = None
     artist: str | None = None
-    source: Literal["title_lookup", "audio_upload", "midi_upload"]
+    source: Literal["title_lookup", "audio_upload", "midi_upload", "chord_sheet"]
     source_filename: str | None = None
     # When True, the ingest stage will attempt to find a clean piano
     # cover of the song (via yt-dlp search + scoring) and swap the
@@ -147,6 +147,7 @@ class InputBundle(BaseModel):
     schema_version: str = SCHEMA_VERSION
     audio: RemoteAudioFile | None = None
     midi: RemoteMidiFile | None = None
+    chord_sheet_text: str | None = None
     metadata: InputMetadata
 
 
@@ -381,7 +382,7 @@ class EngravedOutput(BaseModel):
 # Pipeline routing
 # ---------------------------------------------------------------------------
 
-PipelineVariant = Literal["full", "audio_upload", "midi_upload", "sheet_only"]
+PipelineVariant = Literal["full", "audio_upload", "midi_upload", "sheet_only", "chord_sheet"]
 
 # How seconds-domain transcription becomes a beat-domain PianoScore.
 # ``arrange`` — hand assignment, dedup, quantization (default).
@@ -404,6 +405,7 @@ class PipelineConfig(BaseModel):
             "audio_upload": ["ingest", "transcribe", "arrange", "humanize", "engrave"],
             "midi_upload":  ["ingest", "arrange", "humanize", "engrave"],
             "sheet_only":   ["ingest", "transcribe", "arrange", "engrave"],
+            "chord_sheet":  ["arrange", "engrave"],
         }
         plan = list(routing[self.variant])
         if self.skip_humanizer and "humanize" in plan:

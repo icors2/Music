@@ -33,6 +33,7 @@ from backend.contracts import (
     TranscriptionResult,
 )
 from backend.jobs.events import JobEvent
+from backend.services.chord_sheet import chord_sheet_to_transcription
 from backend.services.pretty_midi_tracks import (
     harmonic_analysis_from_pretty_midi,
     midi_tracks_from_pretty_midi,
@@ -369,15 +370,22 @@ class PipelineRunner:
                 elif step in ("arrange", "condense"):
                     if txr_dict is None:
                         bundle_obj = InputBundle.model_validate(current_payload)
-                        log.info(
-                            "pipeline job_id=%s %s: using MIDI→TranscriptionResult passthrough",
-                            job_id, step,
-                        )
-                        txr_obj = _bundle_to_transcription(
-                            bundle_obj,
-                            blob_store=self.blob_store,
-                            job_id=job_id,
-                        )
+                        if bundle_obj.metadata.source == "chord_sheet":
+                            log.info(
+                                "pipeline job_id=%s %s: using chord-sheet parser",
+                                job_id, step,
+                            )
+                            txr_obj = chord_sheet_to_transcription(bundle_obj)
+                        else:
+                            log.info(
+                                "pipeline job_id=%s %s: using MIDI→TranscriptionResult passthrough",
+                                job_id, step,
+                            )
+                            txr_obj = _bundle_to_transcription(
+                                bundle_obj,
+                                blob_store=self.blob_store,
+                                job_id=job_id,
+                            )
                         txr_dict = txr_obj.model_dump(mode="json")
                     payload_uri = self._serialize_stage_input(job_id, step, txr_dict)
                     output_uri = await self._dispatch_task(task_name, job_id, payload_uri, config.stage_timeout_sec)
