@@ -465,6 +465,7 @@ class PipelineRunner:
                         PianoScore,
                     )
                     from backend.services.midi_render import render_midi_bytes  # noqa: PLC0415
+                    from backend.services.musicxml_render import render_musicxml_bytes  # noqa: PLC0415
                     from backend.services.ml_engraver_client import (  # noqa: PLC0415
                         engrave_midi_via_ml_service,
                     )
@@ -509,7 +510,10 @@ class PipelineRunner:
                     # render_midi_bytes is synchronous (pretty_midi I/O);
                     # keep the event loop free.
                     midi_bytes = await asyncio.to_thread(render_midi_bytes, perf_obj)
-                    musicxml_bytes = await engrave_midi_via_ml_service(midi_bytes)
+                    if bundle.metadata.source == "chord_sheet":
+                        musicxml_bytes = await asyncio.to_thread(render_musicxml_bytes, perf_obj)
+                    else:
+                        musicxml_bytes = await engrave_midi_via_ml_service(midi_bytes)
 
                     prefix = f"jobs/{job_id}/output"
                     musicxml_uri = self.blob_store.put_bytes(

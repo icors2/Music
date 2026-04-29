@@ -6,6 +6,7 @@ from backend.api.deps import get_job_manager
 from backend.contracts import InputBundle, InputMetadata
 from backend.main import app
 from backend.services.chord_sheet import chord_sheet_to_transcription
+from backend.services.musicxml_render import render_musicxml_bytes
 
 
 def test_chord_sheet_parser_turns_chords_into_piano_tracks():
@@ -42,6 +43,47 @@ def test_chord_sheet_parser_rejects_text_without_chords():
         chord_sheet_to_transcription(bundle)
 
 
+def test_chord_sheet_musicxml_renderer_outputs_notation_xml():
+    bundle = InputBundle(
+        chord_sheet_text="C Am F G7",
+        metadata=InputMetadata(title="Chart", artist="QA", source="chord_sheet"),
+    )
+    txr = chord_sheet_to_transcription(bundle)
+
+    from backend.services.arrange import ArrangeService
+
+    import asyncio
+
+    score = asyncio.run(ArrangeService().run(txr))
+    from backend.contracts import ExpressionMap, ExpressiveNote, HumanizedPerformance, QualitySignal
+
+    perf = HumanizedPerformance(
+        expressive_notes=[
+            ExpressiveNote(
+                score_note_id=n.id,
+                pitch=n.pitch,
+                onset_beat=n.onset_beat,
+                duration_beat=n.duration_beat,
+                velocity=n.velocity,
+                hand=hand,
+                voice=n.voice,
+                timing_offset_ms=0.0,
+                velocity_offset=0,
+            )
+            for hand, notes in (("rh", score.right_hand), ("lh", score.left_hand))
+            for n in notes
+        ],
+        expression=ExpressionMap(),
+        score=score,
+        quality=QualitySignal(overall_confidence=0.95),
+    )
+
+    musicxml = render_musicxml_bytes(perf)
+
+    assert b"<score-partwise" in musicxml
+    assert b"<part-name" in musicxml
+
+
 def test_create_job_from_chord_sheet_runs_to_completion(client, monkeypatch):
     from backend.config import settings
 
@@ -71,6 +113,14 @@ def test_create_job_from_chord_sheet_runs_to_completion(client, monkeypatch):
     assert status["status"] == "succeeded", status
     assert status["result"]["musicxml_uri"]
     assert status["result"]["humanized_midi_uri"]
+
+    musicxml = client.get(f"/v1/artifacts/{job_id}/musicxml")
+    assert musicxml.status_code == 200
+    assert b"<score-partwise" in musicxml.content
+
+    midi = client.get(f"/v1/artifacts/{job_id}/midi")
+    assert midi.status_code == 200
+    assert midi.content.startswith(b"MThd")
 
 
 def test_chord_sheet_text_lands_on_bundle(client):

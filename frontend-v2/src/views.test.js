@@ -332,7 +332,7 @@ describe("renderPhase — complete (with tunechat_job_id)", () => {
     expect(iframe.getAttribute("src")).toContain("/embed?job=tc-xyz");
   });
 
-  it("renders 3 download chips (PDF / MusicXML / MIDI)", () => {
+  it("renders download chips for available artifact URIs", () => {
     const chips = container.querySelectorAll(".downloads .assist-chip");
     expect(chips.length).toBe(3);
     const text = [...chips].map((c) => c.textContent).join(" ");

@@ -413,20 +413,21 @@ function workingBody(stage, progress) {
   return el("div", { class: "body" }, stepper, bar, meta);
 }
 
-function downloadChips(jobId) {
+function downloadChips(job) {
   const dl = el("div", { class: "downloads" });
+  const result = (job && job.result) || {};
   const kinds = [
-    { kind: "pdf", label: "PDF", ic: "picture_as_pdf" },
-    { kind: "musicxml", label: "MusicXML", ic: "description" },
-    { kind: "midi", label: "MIDI", ic: "piano" },
+    { kind: "pdf", label: "PDF", ic: "picture_as_pdf", enabled: Boolean(result.pdf_uri || result.tunechat_pdf_url) },
+    { kind: "musicxml", label: "MusicXML", ic: "description", enabled: Boolean(result.musicxml_uri || result.tunechat_musicxml_url) },
+    { kind: "midi", label: "MIDI", ic: "piano", enabled: Boolean(result.humanized_midi_uri || result.tunechat_midi_url) },
   ];
-  for (const k of kinds) {
+  for (const k of kinds.filter((item) => item.enabled)) {
     dl.appendChild(
       el(
         "a",
         {
           class: "assist-chip",
-          href: `/v1/artifacts/${jobId}/${k.kind}`,
+          href: `/v1/artifacts/${job.job_id}/${k.kind}`,
           download: "",
         },
         icon(k.ic),
@@ -532,7 +533,7 @@ function completeBody(job) {
       ),
     );
   }
-  wrap.appendChild(downloadChips(job.job_id));
+  wrap.appendChild(downloadChips(job));
   return wrap;
 }
 
