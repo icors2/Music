@@ -123,17 +123,23 @@ body[data-phase="submitting"] .tagline { display: none; }
 
 /* ── Fields (pill inputs) ─────────────────────────────────────── */
 .field { position: relative; margin-bottom: 12px; }
-.field input {
+.field input,
+.field textarea {
   width: 100%; padding: 14px 20px; border: 2px solid var(--stroke);
-  border-radius: 999px; font: inherit; background: var(--surface); color: var(--ink);
+  font: inherit; background: var(--surface); color: var(--ink);
 }
-.field input::placeholder { color: var(--on-surface-variant); }
-.field input:focus { outline: none; border-color: var(--accent); }
+.field input { border-radius: 999px; }
+.field textarea { border-radius: 24px; line-height: 1.45; }
+.field input::placeholder,
+.field textarea::placeholder { color: var(--on-surface-variant); opacity: 1; }
+.field input:focus,
+.field textarea:focus { outline: none; border-color: var(--accent); }
 .field .field-icon {
   position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
   color: var(--ink); pointer-events: none;
 }
-.field.with-icon input { padding-left: 46px; }
+.field.with-icon input,
+.field.with-icon textarea { padding-left: 46px; }
 
 /* ── Buttons ──────────────────────────────────────────────────── */
 .btn-outlined {
