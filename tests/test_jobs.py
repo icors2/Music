@@ -84,8 +84,52 @@ def test_create_job_from_audio_runs_to_completion(client):
     assert status["result"]["humanized_midi_uri"]
 
 
+def test_create_job_from_chord_sheet_runs_to_completion(client):
+    create = client.post(
+        "/v1/jobs",
+        json={
+            "chord_sheet_text": "Verse:\nC Am F G7\nChorus:\n[C]Sing [G]out [Am]loud [F]now",
+            "title": "Chord Study",
+            "artist": "QA",
+        },
+    )
+    assert create.status_code == 202, create.text
+    job = create.json()
+    assert job["job_id"]
+    assert job["variant"] == "chord_sheet"
+    job_id = job["job_id"]
+
+    deadline = time.time() + 5
+    status = None
+    while time.time() < deadline:
+        status = client.get(f"/v1/jobs/{job_id}").json()
+        if status["status"] in ("succeeded", "failed"):
+            break
+        time.sleep(0.05)
+
+    assert status is not None
+    assert status["status"] == "succeeded", status
+    assert status["result"] is not None
+    assert status["result"]["musicxml_uri"]
+    assert status["result"]["humanized_midi_uri"]
+
+
 def test_create_job_rejects_no_source(client):
     response = client.post("/v1/jobs", json={})
+    assert response.status_code == 400
+
+
+def test_create_job_rejects_empty_chord_sheet(client):
+    response = client.post("/v1/jobs", json={"chord_sheet_text": "   "})
+    assert response.status_code == 400
+
+
+def test_create_job_rejects_chord_sheet_with_audio(client):
+    audio = _upload_audio(client)
+    response = client.post(
+        "/v1/jobs",
+        json={"audio": audio, "chord_sheet_text": "C F G"},
+    )
     assert response.status_code == 400
 
 

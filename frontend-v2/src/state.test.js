@@ -7,9 +7,9 @@ import {
 } from "./state.js";
 
 describe("createStore", () => {
-  it("defaults initial phase to idle/youtube", () => {
+  it("defaults initial phase to idle/chord_sheet", () => {
     const store = createStore();
-    expect(store.getPhase()).toEqual({ name: "idle", source: "youtube" });
+    expect(store.getPhase()).toEqual({ name: "idle", source: "chord_sheet" });
   });
 
   it("accepts a custom initial phase", () => {

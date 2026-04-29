@@ -37,16 +37,9 @@ function isYoutubeVideoUrl(s) {
   return typeof s === "string" && YOUTUBE_VIDEO_RE.test(s.trim());
 }
 
-// Demo-day scope (Apr 20): YouTube is the only source routed through
-// TuneChat for transcription. Audio + MIDI uploads still exist in the
-// backend but aren't plumbed through the TuneChat fast-path yet, and
-// we don't want the landing page advertising options we can't run on
-// stage. The segmented picker auto-hides when SOURCES has <= 1 entry
-// (see `segmented()`), so reducing to a single entry is enough to
-// kill the picker entirely without touching CSS or the branch logic
-// in `idleBody()`. Re-adding audio/midi later is a 2-line restore.
 const SOURCES = [
   { key: "youtube", label: "YouTube" },
+  { key: "chord_sheet", label: "Chord sheet" },
 ];
 
 const STAGES = [
@@ -128,6 +121,31 @@ function field(placeholder, iconName) {
   return { wrap, input };
 }
 
+function textAreaField(placeholder, iconName) {
+  const wrap = el("div", { class: "field" + (iconName ? " with-icon" : "") });
+  if (iconName) {
+    const ic = icon(iconName);
+    ic.classList.add("field-icon");
+    wrap.appendChild(ic);
+  }
+  const input = el("textarea", {
+    placeholder,
+    rows: "7",
+    style: {
+      resize: "vertical",
+      minHeight: "148px",
+      font: "inherit",
+      border: "0",
+      outline: "0",
+      background: "transparent",
+      width: "100%",
+      color: "inherit",
+    },
+  });
+  wrap.appendChild(input);
+  return { wrap, input };
+}
+
 function filePickerButton(accept, labelText, onPick) {
   const input = el("input", {
     type: "file",
@@ -197,6 +215,7 @@ function idleBody(source, handlers) {
   let urlError = null;
   let titleInput = null;
   let artistInput = null;
+  let chordSheetInput = null;
   let submitBtn = null; // forward ref for pulse trigger
 
   if (source === "audio" || source === "midi") {
@@ -231,6 +250,20 @@ function idleBody(source, handlers) {
     const a = field("Artist (optional)");
     titleInput = t.input;
     artistInput = a.input;
+    wrap.appendChild(t.wrap);
+    wrap.appendChild(a.wrap);
+  } else if (source === "chord_sheet") {
+    const chart = textAreaField(
+      "Paste chord sheet, e.g.\nVerse:\nC Am F G7\nChorus:\nDm7 G7 C",
+      "lyrics",
+    );
+    const t = field("Title (optional)");
+    const a = field("Artist (optional)");
+    chordSheetInput = chart.input;
+    titleInput = t.input;
+    artistInput = a.input;
+    wrap.appendChild(chart.wrap);
+    wrap.appendChild(spacer(8));
     wrap.appendChild(t.wrap);
     wrap.appendChild(a.wrap);
   } else {
@@ -296,6 +329,12 @@ function idleBody(source, handlers) {
         null;
       if (!file) return; // silently refuse — no file means no submit
       payload.file = file;
+      if (titleInput && titleInput.value) payload.title = titleInput.value;
+      if (artistInput && artistInput.value) payload.artist = artistInput.value;
+    } else if (source === "chord_sheet") {
+      const text = chordSheetInput && chordSheetInput.value.trim();
+      if (!text) return;
+      payload.chordSheetText = text;
       if (titleInput && titleInput.value) payload.title = titleInput.value;
       if (artistInput && artistInput.value) payload.artist = artistInput.value;
     } else {
@@ -374,20 +413,21 @@ function workingBody(stage, progress) {
   return el("div", { class: "body" }, stepper, bar, meta);
 }
 
-function downloadChips(jobId) {
+function downloadChips(job) {
   const dl = el("div", { class: "downloads" });
+  const result = (job && job.result) || {};
   const kinds = [
-    { kind: "pdf", label: "PDF", ic: "picture_as_pdf" },
-    { kind: "musicxml", label: "MusicXML", ic: "description" },
-    { kind: "midi", label: "MIDI", ic: "piano" },
+    { kind: "pdf", label: "PDF", ic: "picture_as_pdf", enabled: Boolean(result.pdf_uri || result.tunechat_pdf_url) },
+    { kind: "musicxml", label: "MusicXML", ic: "description", enabled: Boolean(result.musicxml_uri || result.tunechat_musicxml_url) },
+    { kind: "midi", label: "MIDI", ic: "piano", enabled: Boolean(result.humanized_midi_uri || result.tunechat_midi_url) },
   ];
-  for (const k of kinds) {
+  for (const k of kinds.filter((item) => item.enabled)) {
     dl.appendChild(
       el(
         "a",
         {
           class: "assist-chip",
-          href: `/v1/artifacts/${jobId}/${k.kind}`,
+          href: `/v1/artifacts/${job.job_id}/${k.kind}`,
           download: "",
         },
         icon(k.ic),
@@ -493,7 +533,7 @@ function completeBody(job) {
       ),
     );
   }
-  wrap.appendChild(downloadChips(job.job_id));
+  wrap.appendChild(downloadChips(job));
   return wrap;
 }
 

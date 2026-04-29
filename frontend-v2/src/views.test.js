@@ -90,13 +90,17 @@ describe("renderPhase — idle / youtube", () => {
     renderPhase(container, { name: "idle", source: "youtube" }, handlers);
   });
 
-  // Demo scope (Apr 20): audio + midi sources are hidden, so SOURCES
-  // has length 1 and the segmented picker auto-hides. Old assertions
-  // about 3 buttons / "marks YouTube tab active" don't apply until
-  // audio/midi come back. Keep this test to lock in the auto-hide
-  // behavior — if SOURCES ever grows, the picker should reappear.
-  it("does NOT render a segmented picker when only one source is defined", () => {
-    expect(container.querySelector(".segmented")).toBeNull();
+  it("renders the source picker with YouTube and chord sheet options", () => {
+    const picker = container.querySelector(".segmented");
+    expect(picker).toBeTruthy();
+    expect(picker.textContent).toContain("YouTube");
+    expect(picker.textContent).toContain("Chord sheet");
+  });
+
+  it("fires onSourceChange when the Chord sheet tab is clicked", () => {
+    const chordTab = findButtonByText(container, "Chord sheet");
+    chordTab.click();
+    expect(handlers.onSourceChange).toHaveBeenCalledWith("chord_sheet");
   });
 
   it("renders a URL input (no file picker)", () => {
@@ -133,6 +137,44 @@ describe("renderPhase — idle / youtube", () => {
   // segmented() unit when SOURCES.length > 1.
 
   it("does NOT fire onSubmit when URL is empty", () => {
+    findButtonByText(container, "Let's go!").click();
+    expect(handlers.onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("renderPhase — idle / chord sheet", () => {
+  beforeEach(() => {
+    renderPhase(container, { name: "idle", source: "chord_sheet" }, handlers);
+  });
+
+  it("renders a chord sheet textarea with title and artist fields", () => {
+    expect(container.querySelector("textarea")).toBeTruthy();
+    const placeholders = [...container.querySelectorAll("input[type='text']")]
+      .map((i) => (i.placeholder || "").toLowerCase());
+    expect(placeholders.some((p) => p.includes("title"))).toBe(true);
+    expect(placeholders.some((p) => p.includes("artist"))).toBe(true);
+  });
+
+  it("fires onSubmit with chord sheet text and metadata", () => {
+    const textarea = container.querySelector("textarea");
+    const inputs = container.querySelectorAll("input[type='text']");
+    textarea.value = "Verse:\nC Am F G7";
+    inputs[0].value = "Practice Chart";
+    inputs[1].value = "QA";
+
+    findButtonByText(container, "Let's go!").click();
+
+    expect(handlers.onSubmit).toHaveBeenCalledTimes(1);
+    const arg = handlers.onSubmit.mock.calls[0][0];
+    expect(arg).toEqual({
+      source: "chord_sheet",
+      chordSheetText: "Verse:\nC Am F G7",
+      title: "Practice Chart",
+      artist: "QA",
+    });
+  });
+
+  it("does NOT fire onSubmit when chord sheet is empty", () => {
     findButtonByText(container, "Let's go!").click();
     expect(handlers.onSubmit).not.toHaveBeenCalled();
   });
@@ -221,7 +263,7 @@ describe("renderPhase — submitting", () => {
   });
 
   it("renders a status message", () => {
-    expect(container.textContent.toLowerCase()).toMatch(/upload|queue|submit/);
+    expect(container.textContent.toLowerCase()).toMatch(/upload|queue|submit|prepare/);
   });
 
   it("does NOT render form controls", () => {
@@ -290,7 +332,7 @@ describe("renderPhase — complete (with tunechat_job_id)", () => {
     expect(iframe.getAttribute("src")).toContain("/embed?job=tc-xyz");
   });
 
-  it("renders 3 download chips (PDF / MusicXML / MIDI)", () => {
+  it("renders download chips for available artifact URIs", () => {
     const chips = container.querySelectorAll(".downloads .assist-chip");
     expect(chips.length).toBe(3);
     const text = [...chips].map((c) => c.textContent).join(" ");

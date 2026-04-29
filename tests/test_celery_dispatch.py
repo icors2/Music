@@ -161,3 +161,28 @@ async def test_sheet_only_pipeline_via_celery(runner):
 
     stage_names = [e.stage for e in events if e.type == "stage_completed"]
     assert stage_names == ["ingest", "transcribe", "arrange", "engrave"]
+
+
+@pytest.mark.asyncio
+async def test_chord_sheet_pipeline_via_celery(runner):
+    """A chord_sheet job should parse text directly into arrange input."""
+    events: list[JobEvent] = []
+
+    bundle = InputBundle(
+        chord_sheet_text="Verse:\nC Am F G7",
+        metadata=InputMetadata(title="Chord Study", artist="Tester", source="chord_sheet"),
+    )
+    config = PipelineConfig(variant="chord_sheet", enable_refine=False)
+
+    result = await runner.run(
+        job_id="test-celery-chords-001",
+        bundle=bundle,
+        config=config,
+        on_event=events.append,
+    )
+
+    assert result.musicxml_uri
+    assert result.humanized_midi_uri
+
+    stage_names = [e.stage for e in events if e.type == "stage_completed"]
+    assert stage_names == ["arrange", "engrave"]

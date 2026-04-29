@@ -19,6 +19,7 @@ import { renderPhase } from "./views.js";
 const MASCOT_FOR = {
   idle: "/mascots/mascot-home-happy.svg",
   "idle:audio": "/mascots/mascot-home-happy.svg",
+  "idle:chord_sheet": "/mascots/mascot-progress-arrange.svg",
   "idle:midi": "/mascots/mascot-progress-arrange.svg",
   "idle:youtube": "/mascots/mascot-progress-ingest.svg",
   submitting: "/mascots/mascot-progress-ingest.svg",
@@ -103,6 +104,12 @@ const handlers = {
           artist: formData.artist,
           prefer_clean_source: true,
         };
+      } else if (formData.source === "chord_sheet") {
+        jobPayload = {
+          title: formData.title,
+          artist: formData.artist,
+          chord_sheet_text: formData.chordSheetText,
+        };
       }
 
       const job = await api.createJob(jobPayload);
@@ -129,12 +136,13 @@ const handlers = {
       });
 
       // If WS is slow to fire, still transition out of "submitting" into
-      // a minimal "working:ingest" within 2s so the user doesn't stare
-      // at a spinner.
+      // a minimal working phase within 2s so the user doesn't stare at
+      // a spinner. Chord sheets skip ingest/transcribe and start at arrange.
       setTimeout(() => {
         const p = store.getPhase();
         if (p.name === "submitting") {
-          store.setPhase({ name: "working", stage: "ingest", progress: 0 });
+          const stage = formData.source === "chord_sheet" ? "arrange" : "ingest";
+          store.setPhase({ name: "working", stage, progress: 0 });
         }
       }, 2000);
     } catch (err) {
@@ -145,4 +153,4 @@ const handlers = {
 };
 
 // Initial render
-store.setPhase({ name: "idle", source: "youtube" });
+store.setPhase({ name: "idle", source: "chord_sheet" });

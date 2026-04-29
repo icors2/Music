@@ -33,6 +33,7 @@ from backend.contracts import (
     TranscriptionResult,
 )
 from backend.jobs.events import JobEvent
+from backend.services.chord_sheet import chord_sheet_to_transcription
 from backend.services.pretty_midi_tracks import (
     harmonic_analysis_from_pretty_midi,
     midi_tracks_from_pretty_midi,
@@ -369,15 +370,22 @@ class PipelineRunner:
                 elif step in ("arrange", "condense"):
                     if txr_dict is None:
                         bundle_obj = InputBundle.model_validate(current_payload)
-                        log.info(
-                            "pipeline job_id=%s %s: using MIDI→TranscriptionResult passthrough",
-                            job_id, step,
-                        )
-                        txr_obj = _bundle_to_transcription(
-                            bundle_obj,
-                            blob_store=self.blob_store,
-                            job_id=job_id,
-                        )
+                        if bundle_obj.metadata.source == "chord_sheet":
+                            log.info(
+                                "pipeline job_id=%s %s: using chord-sheet parser",
+                                job_id, step,
+                            )
+                            txr_obj = chord_sheet_to_transcription(bundle_obj)
+                        else:
+                            log.info(
+                                "pipeline job_id=%s %s: using MIDI→TranscriptionResult passthrough",
+                                job_id, step,
+                            )
+                            txr_obj = _bundle_to_transcription(
+                                bundle_obj,
+                                blob_store=self.blob_store,
+                                job_id=job_id,
+                            )
                         txr_dict = txr_obj.model_dump(mode="json")
                     payload_uri = self._serialize_stage_input(job_id, step, txr_dict)
                     output_uri = await self._dispatch_task(task_name, job_id, payload_uri, config.stage_timeout_sec)
@@ -457,6 +465,7 @@ class PipelineRunner:
                         PianoScore,
                     )
                     from backend.services.midi_render import render_midi_bytes  # noqa: PLC0415
+                    from backend.services.musicxml_render import render_musicxml_bytes  # noqa: PLC0415
                     from backend.services.ml_engraver_client import (  # noqa: PLC0415
                         engrave_midi_via_ml_service,
                     )
@@ -501,7 +510,10 @@ class PipelineRunner:
                     # render_midi_bytes is synchronous (pretty_midi I/O);
                     # keep the event loop free.
                     midi_bytes = await asyncio.to_thread(render_midi_bytes, perf_obj)
-                    musicxml_bytes = await engrave_midi_via_ml_service(midi_bytes)
+                    if bundle.metadata.source == "chord_sheet":
+                        musicxml_bytes = await asyncio.to_thread(render_musicxml_bytes, perf_obj)
+                    else:
+                        musicxml_bytes = await engrave_midi_via_ml_service(midi_bytes)
 
                     prefix = f"jobs/{job_id}/output"
                     musicxml_uri = self.blob_store.put_bytes(

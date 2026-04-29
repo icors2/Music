@@ -32,6 +32,7 @@ class JobCreateRequest(BaseModel):
     Source signal (pick one):
       * ``audio``  — RemoteAudioFile from /v1/uploads/audio (variant: audio_upload)
       * ``midi``   — RemoteMidiFile  from /v1/uploads/midi  (variant: midi_upload)
+      * ``chord_sheet_text``          — pasted chord chart  (variant: chord_sheet)
       * neither, but ``title`` set    — title-lookup        (variant: full)
 
     ``title`` and ``artist`` are metadata — they can be supplied alongside any
@@ -49,6 +50,7 @@ class JobCreateRequest(BaseModel):
 
     audio: RemoteAudioFile | None = None
     midi: RemoteMidiFile | None = None
+    chord_sheet_text: str | None = None
     title: str | None = None
     artist: str | None = None
     prefer_clean_source: bool = False
@@ -87,16 +89,23 @@ async def create_job(
     manager: Annotated[JobManager, Depends(get_job_manager)],
     blob: Annotated[LocalBlobStore, Depends(get_blob_store)],
 ) -> JobSummary:
-    # Source signal: audio xor midi; if neither, fall back to title-lookup.
+    chord_sheet_text = body.chord_sheet_text.strip() if body.chord_sheet_text else None
+
+    # Source signal: audio xor midi xor chord_sheet; if none, fall back to title-lookup.
     if body.audio is not None and body.midi is not None:
         raise HTTPException(
             status_code=400,
             detail="Provide audio OR midi, not both.",
         )
-    if body.audio is None and body.midi is None and not body.title:
+    if chord_sheet_text is not None and (body.audio is not None or body.midi is not None):
         raise HTTPException(
             status_code=400,
-            detail="Provide one of: audio, midi, or title (for title-lookup).",
+            detail="Provide chord_sheet_text by itself, not with audio or midi.",
+        )
+    if body.audio is None and body.midi is None and chord_sheet_text is None and not body.title:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide one of: audio, midi, chord_sheet_text, or title (for title-lookup).",
         )
 
     # title_lookup jobs resolve through TuneChat upstream — they never
@@ -107,7 +116,7 @@ async def create_job(
     # Explicit title check (not just "neither audio nor midi") so a
     # future source type doesn't silently classify as title_lookup.
     is_title_lookup = (
-        body.audio is None and body.midi is None and body.title is not None
+        body.audio is None and body.midi is None and chord_sheet_text is None and body.title is not None
     )
     if is_title_lookup and not settings.tunechat_enabled:
         raise HTTPException(
@@ -165,6 +174,15 @@ async def create_job(
             metadata=InputMetadata(source="midi_upload", **metadata_kwargs),
         )
         variant = "midi_upload"
+    elif chord_sheet_text is not None:
+        bundle = InputBundle(
+            schema_version=SCHEMA_VERSION,
+            audio=None,
+            midi=None,
+            chord_sheet_text=chord_sheet_text,
+            metadata=InputMetadata(source="chord_sheet", **metadata_kwargs),
+        )
+        variant = "chord_sheet"
     else:
         assert body.title is not None
         bundle = InputBundle(
